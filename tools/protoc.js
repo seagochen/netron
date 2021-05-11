@@ -2,6 +2,7 @@
 
 const protoc = {};
 const fs = require('fs');
+const path = require('path');
 
 protoc.Object = class {
 
@@ -149,13 +150,12 @@ protoc.Root = class extends protoc.Namespace {
             new protoc.Field(type, 'type_url', 1, 'string');
             new protoc.Field(type, 'value', 2, 'bytes');
         });
-
         this.load(paths, files);
     }
 
     load(paths, files) {
         for (const file of files) {
-            const resolved = this._resolvePath(paths, '', file);
+            const resolved = this._resolve(file, '', paths);
             if (resolved) {
                 this._loadFile(paths, resolved);
             }
@@ -166,17 +166,19 @@ protoc.Root = class extends protoc.Namespace {
     _loadFile(paths, file, weak) {
         if (!this._files.has(file)) {
             this._files.add(file);
-            if (this._library.has(file)) {
-                this._library.get(file)();
-                return;
-            }
-            try {
-                this._parseFile(paths, file);
-            }
-            catch (err) {
-                if (!weak) {
-                    throw err;
+            if (!this._library.has(file)) {
+                try {
+                    this._parseFile(paths, file);
                 }
+                catch (err) {
+                    if (!weak) {
+                        throw err;
+                    }
+                }
+            }
+            else {
+                const callback = this._library.get(file);
+                callback();
             }
         }
     }
@@ -186,84 +188,40 @@ protoc.Root = class extends protoc.Namespace {
         const parser = new protoc.Parser(source, file, this);
         const parsed = parser.parse();
         for (const item of parsed.imports) {
-            const importFile = this._resolvePath(paths, file, item);
-            if (importFile) {
-                this._loadFile(paths, importFile);
+            const resolved = this._resolve(item, file, paths);
+            if (!resolved) {
+                throw new protoc.Error("File '" + item + "' not found.");
             }
+            this._loadFile(paths, resolved);
         }
-        for (const item of parsed.imports) {
-            const importFile = this._resolvePath(paths, file, item);
-            if (importFile) {
-                this._loadFile(paths, importFile, true);
+        for (const item of parsed.weakImports) {
+            const resolved = this._resolve(item, file, paths);
+            if (resolved) {
+                this._loadFile(paths, resolved);
             }
         }
     }
 
-    _resolvePath(paths, origin, target) {
-        const normOrigin = protoc.Root._normalize(origin);
-        const normTarget = protoc.Root._normalize(target);
-        let resolved = protoc.Root._resolve(normOrigin, normTarget);
-        const index = resolved.lastIndexOf('google/protobuf/');
+    _resolve(target, source, paths) {
+        const file = path.resolve(source, target);
+        const posix = file.split(path.sep).join(path.posix.sep);
+        const index = posix.lastIndexOf('google/protobuf/');
         if (index > -1) {
-            const name = resolved.substring(index);
+            const name = posix.substring(index);
             if (this._library.has(name)) {
-                resolved = name;
+                return name;
             }
         }
-        if (fs.existsSync(resolved)) {
-            return resolved;
+        if (fs.existsSync(file)) {
+            return file;
         }
-        for (let i = 0; i < paths.length; ++i) {
-            const resolved = protoc.Root._resolve(paths[i] + '/', target);
-            if (fs.existsSync(resolved)) {
-                return resolved;
+        for (const dir of paths) {
+            const file = path.resolve(dir, target);
+            if (fs.existsSync(file)) {
+                return file;
             }
         }
-        return resolved;
-    }
-
-    static _isAbsolute(path) {
-        return /^(?:\/|\w+:)/.test(path);
-    }
-
-    static _normalize(path) {
-        path = path.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
-        const parts = path.split('/');
-        const absolute = protoc.Root._isAbsolute(path);
-        const prefix = absolute ? parts.shift() + '/' : '';
-        for (let i = 0; i < parts.length;) {
-            if (parts[i] === '..') {
-                if (i > 0 && parts[i - 1] !== '..') {
-                    parts.splice(--i, 2);
-                }
-                else if (absolute) {
-                    parts.splice(i, 1);
-                }
-                else {
-                    i++;
-                }
-            }
-            else if (parts[i] === '.') {
-                parts.splice(i, 1);
-            }
-            else {
-                i++;
-            }
-        }
-        return prefix + parts.join('/');
-    }
-
-    static _resolve(originPath, includePath, alreadyNormalized) {
-        if (!alreadyNormalized) {
-            includePath = protoc.Root._normalize(includePath);
-        }
-        if (protoc.Root._isAbsolute(includePath)) {
-            return includePath;
-        }
-        if (!alreadyNormalized) {
-            originPath = protoc.Root._normalize(originPath);
-        }
-        return (originPath = originPath.replace(/(?:\/|^)[^/]+$/, '')).length ? protoc.Root._normalize(originPath + '/' + includePath) : includePath;
+        return null;
     }
 };
 
@@ -1558,4 +1516,13 @@ const main = (args) => {
     return 0;
 };
 
-process.exit(main(process.argv.slice(2)));
+if (typeof process === 'object' && Array.isArray(process.argv) &&
+    process.argv.length > 1 && process.argv[1] === __filename) {
+    const args = process.argv.slice(2);
+    const code = main(args);
+    process.exit(code);
+}
+
+if (typeof module !== 'undefined' && typeof module.exports === 'object') {
+    module.exports.Root = protoc.Root;
+}

@@ -37,7 +37,15 @@ sync() {
 install() {
     echo "pytorch install"
     venv
-    ${python} -m pip install --quiet --upgrade future protobuf scipy
+    ${python} -m pip install --quiet --upgrade future protobuf
+    if [[ "${OSTYPE}" == darwin* ]] && [[ "$(uname -sm)" = "Darwin arm64" ]] && [[ $(${python} -c "import platform; print(platform.uname().machine);") = "arm64" ]]; then
+        [ -x "$(brew --prefix openblas)" ] || brew install openblas > /dev/null
+        export OPENBLAS=$(brew --prefix openblas)
+        ${python} -m pip install --upgrade --quiet pybind11 cython pyyaml
+        ${python} -m pip install --upgrade --quiet numpy --no-use-pep517
+    else
+        ${python} -m pip install --quiet --upgrade scipy
+    fi
     ${python} -m pip install --quiet --upgrade --pre torch -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
     deactivate
 }
@@ -71,18 +79,6 @@ metadata() {
     deactivate
 }
 
-zoo() {
-    echo "pytorch zoo"
-    rm -rf "./third_party/env/pytorch"
-    venv
-    ${python} -m pip install --quiet --upgrade future protobuf scipy
-    ${python} -m pip install --quiet --upgrade --pre torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
-    export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
-    ${python} ./tools/pytorch-script.py zoo
-    deactivate
-    rm -rf "./third_party/env/pytorch"
-}
-
 while [ "$#" != 0 ]; do
     command="$1" && shift
     case "${command}" in
@@ -91,6 +87,5 @@ while [ "$#" != 0 ]; do
         "install") install;;
         "schema") schema;;
         "metadata") metadata;;
-        "zoo") zoo;;
     esac
 done

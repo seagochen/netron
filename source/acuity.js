@@ -9,8 +9,8 @@ acuity.ModelFactory = class {
     match(context) {
         const extension = context.identifier.split('.').pop().toLowerCase();
         if (extension === 'json') {
-            const tags = context.tags('json');
-            if (tags.has('MetaData') && tags.has('Layers')) {
+            const obj = context.open('json');
+            if (obj && obj.MetaData && obj.Layers) {
                 return true;
             }
         }
@@ -22,9 +22,9 @@ acuity.ModelFactory = class {
             const extension = context.identifier.split('.').pop().toLowerCase();
             switch (extension) {
                 case 'json': {
-                    const model = context.tags('json').get('');
-                    if (model && model.MetaData && model.Layers) {
-                        return new acuity.Model(metadata, model);
+                    const obj = context.open('json');
+                    if (obj && obj.MetaData && obj.Layers) {
+                        return new acuity.Model(metadata, obj);
                     }
                 }
             }
@@ -394,18 +394,13 @@ acuity.Metadata = class {
     constructor(data) {
         this._map = new Map();
         if (data) {
-            const items = JSON.parse(data);
-            if (items) {
-                for (const item of items) {
-                    item.schema.name = item.name;
-                    this._map.set(item.name, item.schema);
-                }
-            }
+            const metadata = JSON.parse(data);
+            this._map = new Map(metadata.map((item) => [ item.name, item ]));
         }
     }
 
     type(name) {
-        return this._map.has(name) ? this._map.get(name) : null;
+        return this._map.get(name);
     }
 
     attribute(type, name) {

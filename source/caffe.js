@@ -16,18 +16,6 @@ caffe.ModelFactory = class {
             identifier.endsWith('init_net.pbtxt') || identifier.endsWith('init_net.prototxt')) {
             return false;
         }
-        if (extension == 'pt') {
-            const stream = context.stream;
-            const signatures = [
-                // Reject PyTorch models
-                [ 0x80, undefined, 0x8a, 0x0a, 0x6c, 0xfc, 0x9c, 0x46, 0xf9, 0x20, 0x6a, 0xa8, 0x50, 0x19 ],
-                // Reject TorchScript models
-                [ 0x50, 0x4b ]
-            ];
-            if (signatures.some((signature) => signature.length <= stream.length && stream.peek(signature.length).every((value, index) => signature[index] === undefined || signature[index] === value))) {
-                return false;
-            }
-        }
         const tags = context.tags('pbtxt');
         if (tags.has('layer') || tags.has('layers') || tags.has('net') || tags.has('train_net') || tags.has('net_param')) {
             return true;
@@ -766,23 +754,16 @@ caffe.Metadata = class {
     }
 
     constructor(data) {
-        this._map = {};
+        this._map = new Map();
         this._attributeCache = {};
         if (data) {
-            const items = JSON.parse(data);
-            if (items) {
-                for (const item of items) {
-                    if (item.name && item.schema) {
-                        item.schema.name = item.name;
-                        this._map[item.name] = item.schema;
-                    }
-                }
-            }
+            const metadata = JSON.parse(data);
+            this._map = new Map(metadata.map((item) => [ item.name, item ]));
         }
     }
 
     type(name) {
-        return this._map[name] || null;
+        return this._map.get(name);
     }
 
     attribute(type, name) {

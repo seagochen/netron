@@ -14,7 +14,8 @@ clean:
 	rm -rf ./package-lock.json
 
 reset: clean
-	rm -rf ./third_party
+	rm -rf ./third_party/env
+	rm -rf ./third_party/source
 
 update: install
 	@./tools/armnn sync schema
@@ -24,23 +25,27 @@ update: install
 	@./tools/coreml sync schema
 	@./tools/dnn schema
 	@./tools/mnn sync schema
-	@./tools/mslite sync schema
+	@./tools/mslite sync schema metadata
 	@./tools/onnx sync install schema metadata
 	@./tools/paddle sync schema
 	@./tools/pytorch sync install schema metadata
 	@./tools/sklearn sync install metadata
 	@./tools/tf sync install schema metadata
 	@./tools/uff schema
+	@./tools/xmodel sync schema
 
 build_python: install
 	python -m pip install --user wheel
 	python ./setup.py build --version bdist_wheel
 
+install_python: build_python
+	pip install --force-reinstall --quiet dist/dist/*.whl
+
 build_electron: install
 	CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac --universal --publish never
-	npx electron-builder --win --publish never
-	npx electron-builder --linux appimage --publish never
-	npx electron-builder --linux snap --publish never
+	npx electron-builder --win --x64 --arm64 --publish never
+	npx electron-builder --linux appimage --x64 --publish never
+	npx electron-builder --linux snap --x64 --publish never
 
 start: install
 	npx electron .
@@ -65,9 +70,9 @@ publish_python: build_python
 
 publish_electron: install
 	npx electron-builder --mac --universal --publish always
-	npx electron-builder --win --publish always
-	npx electron-builder --linux appimage --publish always
-	npx electron-builder --linux snap --publish always
+	npx electron-builder --win --x64 --arm64 --publish always
+	npx electron-builder --linux appimage --x64 --publish always
+	npx electron-builder --linux snap --x64 --publish always
 
 build_web:
 	mkdir -p ./dist/web

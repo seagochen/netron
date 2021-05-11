@@ -41,10 +41,6 @@ sync() {
 
 install() {
     echo "tf install"
-    if [ "$(${python} -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')" = "3.9" ]; then
-        echo "- python 3.9 [skip]"
-        return
-    fi
     if [ "$(uname -sm)" = "Darwin arm64" ]; then
         echo "- arm64 [skip]"
         return
@@ -77,11 +73,13 @@ schema() {
 }
 
 metadata() {
-    echo "tf metadata"
-    if [ "$(${python} -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')" = "3.9" ]; then
-        echo "- python 3.9 [skip]"
-        return
+    echo "tflite metadata"
+    if [[ $(grep -U $'\x0D' ./source/tflite-metadata.json) ]]; then crlf=1; else crlf=; fi
+    node ./tools/tf-script.js
+    if [[ -n ${crlf} ]]; then
+        unix2dos --quiet --newfile ./source/tflite-metadata.json ./source/tflite-metadata.json
     fi
+    echo "tf metadata"
     if [ "$(uname -sm)" = "Darwin arm64" ]; then
         echo "- arm64 [skip]"
         return
@@ -104,14 +102,6 @@ metadata() {
     deactivate
 }
 
-zoo() {
-    echo "keras zoo"
-    venv
-    export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
-    ${python} ./tools/keras-script.py zoo
-    deactivate
-}
-
 while [ "$#" != 0 ]; do
     command="$1" && shift
     case "${command}" in
@@ -120,6 +110,5 @@ while [ "$#" != 0 ]; do
         "install") install;;
         "schema") schema;;
         "metadata") metadata;;
-        "zoo") zoo;;
     esac
 done

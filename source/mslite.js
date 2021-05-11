@@ -10,7 +10,7 @@ mslite.ModelFactory = class {
         if (stream.length >= 8) {
             const buffer = stream.peek(8);
             const reader = new flatbuffers.Reader(buffer);
-            if (reader.identifier === 'MSL1') {
+            if (reader.identifier === '' || reader.identifier === 'MSL1' || reader.identifier === 'MSL2') {
                 return true;
             }
         }
@@ -19,11 +19,19 @@ mslite.ModelFactory = class {
 
     open(context) {
         return context.require('./mslite-schema').then(() => {
+            const buffer = context.stream.peek();
+            const reader = new flatbuffers.Reader(buffer);
+            switch (reader.identifier) {
+                case '':
+                    throw new mslite.Error('MSL0 format is deprecated.', false);
+                case 'MSL1':
+                    throw new mslite.Error('MSL1 format is deprecated.', false);
+                case 'MSL2':
+                    break;
+            }
             let model = null;
             try {
                 mslite.schema = flatbuffers.get('mslite').mindspore.schema;
-                const buffer = context.stream.peek();
-                const reader = new flatbuffers.Reader(buffer);
                 model = mslite.schema.MetaGraph.create(reader);
             }
             catch (error) {
@@ -50,12 +58,12 @@ mslite.Model = class {
         }
         const subgraphs = model.subGraph;
         if (Array.isArray(subgraphs)) {
-            this._graphs.push(new mslite.Graph(metadata, model, model));
-        }
-        else {
             for (const subgraph of subgraphs) {
                 this._graphs.push(new mslite.Graph(metadata, subgraph, model));
             }
+        }
+        else {
+            this._graphs.push(new mslite.Graph(metadata, model, model));
         }
     }
 
@@ -558,15 +566,8 @@ mslite.Metadata = class {
     constructor(data) {
         this._map = new Map();
         if (data) {
-            const items = JSON.parse(data);
-            if (items) {
-                for (const item of items) {
-                    if (item.name && item.schema) {
-                        item.schema.name = item.name;
-                        this._map.set(item.name, item.schema);
-                    }
-                }
-            }
+            const metadata = JSON.parse(data);
+            this._map = new Map(metadata.map((item) => [ item.name, item ]));
         }
     }
 
@@ -620,9 +621,10 @@ mslite.Utility = class {
 
 mslite.Error = class extends Error {
 
-    constructor(message) {
+    constructor(message, context) {
         super(message);
         this.name = 'Error loading MindSpore Lite model.';
+        this.context = context === false ? false : true;
     }
 };
 

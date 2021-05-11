@@ -2,81 +2,6 @@ var $root = protobuf.get('caffe2');
 
 $root.caffe2 = {};
 
-$root.caffe2.ExternalDataProto = class ExternalDataProto {
-
-    constructor() {
-        this.strides = [];
-    }
-
-    static decode(reader, length) {
-        const message = new $root.caffe2.ExternalDataProto();
-        const end = length !== undefined ? reader.position + length : reader.length;
-        while (reader.position < end) {
-            const tag = reader.uint32();
-            switch (tag >>> 3) {
-                case 1:
-                    message.source_type = reader.int32();
-                    break;
-                case 2:
-                    message.record_id = reader.string();
-                    break;
-                case 5:
-                    message.record_size = reader.uint64();
-                    break;
-                case 3:
-                    message.offset = reader.int64();
-                    break;
-                case 4:
-                    message.strides = reader.array(message.strides, () => reader.int64(), tag);
-                    break;
-                default:
-                    reader.skipType(tag & 7);
-                    break;
-            }
-        }
-        return message;
-    }
-
-    static decodeText(reader) {
-        const message = new $root.caffe2.ExternalDataProto();
-        reader.start();
-        while (!reader.end()) {
-            const tag = reader.tag();
-            switch (tag) {
-                case "source_type":
-                    message.source_type = reader.enum($root.caffe2.ExternalDataProto.SourceType);
-                    break;
-                case "record_id":
-                    message.record_id = reader.string();
-                    break;
-                case "record_size":
-                    message.record_size = reader.integer();
-                    break;
-                case "offset":
-                    message.offset = reader.integer();
-                    break;
-                case "strides":
-                    reader.array(message.strides, () => reader.integer());
-                    break;
-                default:
-                    reader.field(tag, message);
-                    break;
-            }
-        }
-        return message;
-    }
-};
-
-$root.caffe2.ExternalDataProto.prototype.source_type = 0;
-$root.caffe2.ExternalDataProto.prototype.record_id = "";
-$root.caffe2.ExternalDataProto.prototype.record_size = protobuf.Uint64.create(0);
-$root.caffe2.ExternalDataProto.prototype.offset = protobuf.Int64.create(0);
-
-$root.caffe2.ExternalDataProto.SourceType = {
-    "INLINE_CONTAINER": 0,
-    "SIMPLE_FILE": 1
-};
-
 $root.caffe2.TensorProto = class TensorProto {
 
     constructor() {
@@ -100,8 +25,8 @@ $root.caffe2.TensorProto = class TensorProto {
                 case 2:
                     message.data_type = reader.int32();
                     break;
-                case 12:
-                    message.storage_type = reader.int32();
+                case 15:
+                    message.data_format = reader.uint32();
                     break;
                 case 3:
                     message.float_data = reader.floats(message.float_data, tag);
@@ -123,9 +48,6 @@ $root.caffe2.TensorProto = class TensorProto {
                     break;
                 case 13:
                     message.raw_data = reader.bytes();
-                    break;
-                case 14:
-                    message.external_data = $root.caffe2.ExternalDataProto.decode(reader, reader.uint32());
                     break;
                 case 7:
                     message.name = reader.string();
@@ -156,8 +78,8 @@ $root.caffe2.TensorProto = class TensorProto {
                 case "data_type":
                     message.data_type = reader.enum($root.caffe2.TensorProto.DataType);
                     break;
-                case "storage_type":
-                    message.storage_type = reader.enum($root.caffe2.TensorProto.StorageType);
+                case "data_format":
+                    message.data_format = reader.integer();
                     break;
                 case "float_data":
                     reader.array(message.float_data, () => reader.float());
@@ -180,9 +102,6 @@ $root.caffe2.TensorProto = class TensorProto {
                 case "raw_data":
                     message.raw_data = reader.bytes();
                     break;
-                case "external_data":
-                    message.external_data = $root.caffe2.ExternalDataProto.decodeText(reader);
-                    break;
                 case "name":
                     message.name = reader.string();
                     break;
@@ -202,10 +121,9 @@ $root.caffe2.TensorProto = class TensorProto {
 };
 
 $root.caffe2.TensorProto.prototype.data_type = 1;
-$root.caffe2.TensorProto.prototype.storage_type = 1;
+$root.caffe2.TensorProto.prototype.data_format = 0;
 $root.caffe2.TensorProto.prototype.byte_data = new Uint8Array([]);
 $root.caffe2.TensorProto.prototype.raw_data = new Uint8Array([]);
-$root.caffe2.TensorProto.prototype.external_data = null;
 $root.caffe2.TensorProto.prototype.name = "";
 $root.caffe2.TensorProto.prototype.device_detail = null;
 $root.caffe2.TensorProto.prototype.segment = null;
@@ -224,14 +142,13 @@ $root.caffe2.TensorProto.DataType = {
     "INT64": 10,
     "FLOAT16": 12,
     "DOUBLE": 13,
-    "ZERO_COLLISION_HASH": 14
+    "ZERO_COLLISION_HASH": 14,
+    "REBATCHING_BUFFER": 15
 };
 
-$root.caffe2.TensorProto.StorageType = {
-    "TYPED": 1,
-    "RAW": 2,
-    "EXTERNAL": 3,
-    "NO_CONTENT": 4
+$root.caffe2.TensorProto.SerializationFormat = {
+    "FMT_PROTOBUF": 0,
+    "FMT_BFLOAT16": 1
 };
 
 $root.caffe2.TensorProto.Segment = class Segment {
@@ -733,6 +650,12 @@ $root.caffe2.AOTConfig = class AOTConfig {
                 case 3:
                     message.in_batch_broadcast = reader.bool();
                     break;
+                case 4:
+                    message.onnxifi_blacklist_ops = reader.string();
+                    break;
+                case 5:
+                    message.onnxifi_min_ops = reader.int32();
+                    break;
                 default:
                     reader.skipType(tag & 7);
                     break;
@@ -765,6 +688,12 @@ $root.caffe2.AOTConfig = class AOTConfig {
                 case "in_batch_broadcast":
                     message.in_batch_broadcast = reader.boolean();
                     break;
+                case "onnxifi_blacklist_ops":
+                    message.onnxifi_blacklist_ops = reader.string();
+                    break;
+                case "onnxifi_min_ops":
+                    message.onnxifi_min_ops = reader.integer();
+                    break;
                 default:
                     reader.field(tag, message);
                     break;
@@ -783,6 +712,8 @@ $root.caffe2.AOTConfig = class AOTConfig {
 $root.caffe2.AOTConfig.prototype.max_batch_size = protobuf.Int64.create(0);
 $root.caffe2.AOTConfig.prototype.max_seq_size = protobuf.Int64.create(0);
 $root.caffe2.AOTConfig.prototype.in_batch_broadcast = false;
+$root.caffe2.AOTConfig.prototype.onnxifi_blacklist_ops = "";
+$root.caffe2.AOTConfig.prototype.onnxifi_min_ops = 0;
 
 $root.caffe2.Argument = class Argument {
 
@@ -914,7 +845,8 @@ $root.caffe2.DeviceTypeProto = {
     "PROTO_FPGA": 7,
     "PROTO_MSNPU": 8,
     "PROTO_XLA": 9,
-    "PROTO_COMPILE_TIME_MAX_DEVICE_TYPES": 10
+    "PROTO_MLC": 10,
+    "PROTO_COMPILE_TIME_MAX_DEVICE_TYPES": 11
 };
 
 $root.caffe2.DeviceOption = class DeviceOption {
@@ -1720,3 +1652,106 @@ $root.caffe2.DBReaderProto.prototype.name = "";
 $root.caffe2.DBReaderProto.prototype.source = "";
 $root.caffe2.DBReaderProto.prototype.db_type = "";
 $root.caffe2.DBReaderProto.prototype.key = "";
+
+$root.caffe2.BlobSerializationOptions = class BlobSerializationOptions {
+
+    constructor() {
+    }
+
+    static decode(reader, length) {
+        const message = new $root.caffe2.BlobSerializationOptions();
+        const end = length !== undefined ? reader.position + length : reader.length;
+        while (reader.position < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    message.blob_name_regex = reader.string();
+                    break;
+                case 2:
+                    message.chunk_size = reader.int64();
+                    break;
+                case 3:
+                    message.float_format = reader.int32();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+            }
+        }
+        return message;
+    }
+
+    static decodeText(reader) {
+        const message = new $root.caffe2.BlobSerializationOptions();
+        reader.start();
+        while (!reader.end()) {
+            const tag = reader.tag();
+            switch (tag) {
+                case "blob_name_regex":
+                    message.blob_name_regex = reader.string();
+                    break;
+                case "chunk_size":
+                    message.chunk_size = reader.integer();
+                    break;
+                case "float_format":
+                    message.float_format = reader.enum($root.caffe2.BlobSerializationOptions.FloatFormat);
+                    break;
+                default:
+                    reader.field(tag, message);
+                    break;
+            }
+        }
+        return message;
+    }
+};
+
+$root.caffe2.BlobSerializationOptions.prototype.blob_name_regex = "";
+$root.caffe2.BlobSerializationOptions.prototype.chunk_size = protobuf.Int64.create(0);
+$root.caffe2.BlobSerializationOptions.prototype.float_format = 0;
+
+$root.caffe2.BlobSerializationOptions.FloatFormat = {
+    "FLOAT_DEFAULT": 0,
+    "FLOAT_PROTOBUF": 1,
+    "FLOAT_BFLOAT16": 2
+};
+
+$root.caffe2.SerializationOptions = class SerializationOptions {
+
+    constructor() {
+        this.options = [];
+    }
+
+    static decode(reader, length) {
+        const message = new $root.caffe2.SerializationOptions();
+        const end = length !== undefined ? reader.position + length : reader.length;
+        while (reader.position < end) {
+            const tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    message.options.push($root.caffe2.BlobSerializationOptions.decode(reader, reader.uint32()));
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+            }
+        }
+        return message;
+    }
+
+    static decodeText(reader) {
+        const message = new $root.caffe2.SerializationOptions();
+        reader.start();
+        while (!reader.end()) {
+            const tag = reader.tag();
+            switch (tag) {
+                case "options":
+                    message.options.push($root.caffe2.BlobSerializationOptions.decodeText(reader));
+                    break;
+                default:
+                    reader.field(tag, message);
+                    break;
+            }
+        }
+        return message;
+    }
+};

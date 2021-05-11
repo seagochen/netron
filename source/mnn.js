@@ -12,7 +12,7 @@ mnn.ModelFactory = class {
             if (extension == 'mnn') {
                 const buffer = stream.peek(4);
                 const reader = new flatbuffers.Reader(buffer);
-                if (reader.root === 0x00000018 || reader.root === 0x0000001C) {
+                if (reader.root === 0x00000018 || reader.root === 0x0000001C || reader.root === 0x00000020) {
                     return true;
                 }
             }
@@ -536,20 +536,13 @@ mnn.Metadata = class {
     constructor(data) {
         this._map = new Map();
         if (data) {
-            const items = JSON.parse(data);
-            if (items) {
-                for (const item of items) {
-                    if (item.name && item.schema) {
-                        item.schema.name = item.name;
-                        this._map.set(item.name, item.schema);
-                    }
-                }
-            }
+            const metadata = JSON.parse(data);
+            this._map = new Map(metadata.map((item) => [ item.name, item ]));
         }
     }
 
     type(name) {
-        return this._map.has(name) ? this._map.get(name) : null;
+        return this._map.get(name);
     }
 
     attribute(type, name) {

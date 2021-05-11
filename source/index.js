@@ -194,7 +194,7 @@ host.BrowserHost = class {
         if (this._meta.file) {
             const url = this._meta.file[0];
             if (this._view.accept(url)) {
-                this._openModel(url, null);
+                this._openModel(this._url(url), null);
                 return;
             }
         }
@@ -429,13 +429,13 @@ host.BrowserHost = class {
             if (location.endsWith('/')) {
                 location = location.slice(0, -1);
             }
-            url = location + '/' + file;
+            url = location + '/' + (file.startsWith('/') ? file.substring(1) : file);
         }
         return url;
     }
 
     _openModel(url, identifier) {
-        url = url + ((/\?/).test(url) ? "&" : "?") + (new Date()).getTime();
+        url = url + ((/\?/).test(url) ? '&' : '?') + 'cb=' + (new Date()).getTime();
         this._view.show('welcome spinner');
         this._request(url).then((buffer) => {
             const context = new host.BrowserHost.BrowserContext(this, url, identifier, buffer);

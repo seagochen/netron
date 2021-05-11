@@ -229,6 +229,9 @@ sidebar.NodeSidebar = class {
             view.on('export-tensor', (sender, tensor) => {
                 this._raise('export-tensor', tensor);
             });
+            view.on('error', (sender, tensor) => {
+                this._raise('error', tensor);
+            });
             const item = new sidebar.NameValueView(this._host, name, view);
             this._inputs.push(item);
             this._elements.push(item.render());
@@ -562,6 +565,9 @@ sidebar.ParameterView = class {
             item.on('export-tensor', (sender, tensor) => {
                 this._raise('export-tensor', tensor);
             });
+            item.on('error', (sender, tensor) => {
+                this._raise('error', tensor);
+            });
             this._items.push(item);
             this._elements.push(item.render());
         }
@@ -608,7 +614,8 @@ sidebar.ArgumentView = class {
 
         const quantization = argument.quantization;
         const type = argument.type;
-        if (type || initializer || quantization) {
+        const location = this._argument.location !== undefined;
+        if (type || initializer || quantization || location) {
             this._expander = this._host.document.createElement('div');
             this._expander.className = 'sidebar-view-item-value-expander';
             this._expander.innerText = '+';
@@ -620,13 +627,9 @@ sidebar.ArgumentView = class {
 
         let name = this._argument.name || '';
         this._hasId = name ? true : false;
-        if (initializer && !this._hasId) {
-            const kindLine = this._host.document.createElement('div');
-            kindLine.className = 'sidebar-view-item-value-line';
-            kindLine.innerHTML = 'kind: <b>' + initializer.kind + '</b>';
-            this._element.appendChild(kindLine);
-        }
-        else {
+        this._hasKind = initializer && initializer.kind ? true : false;
+        if (this._hasId || (!this._hasKind && !type)) {
+            this._hasId = true;
             const nameLine = this._host.document.createElement('div');
             nameLine.className = 'sidebar-view-item-value-line';
             if (typeof name !== 'string') {
@@ -636,6 +639,18 @@ sidebar.ArgumentView = class {
             name = name || ' ';
             nameLine.innerHTML = '<span class=\'sidebar-view-item-value-line-content\'>name: <b>' + name + '</b></span>';
             this._element.appendChild(nameLine);
+        }
+        else if (this._hasKind) {
+            const kindLine = this._host.document.createElement('div');
+            kindLine.className = 'sidebar-view-item-value-line';
+            kindLine.innerHTML = 'kind: <b>' + initializer.kind + '</b>';
+            this._element.appendChild(kindLine);
+        }
+        else if (type) {
+            const typeLine = this._host.document.createElement('div');
+            typeLine.className = 'sidebar-view-item-value-line-border';
+            typeLine.innerHTML = 'type: <code><b>' + type.toString().split('<').join('&lt;').split('>').join('&gt;') + '</b></code>';
+            this._element.appendChild(typeLine);
         }
     }
 
@@ -649,24 +664,19 @@ sidebar.ArgumentView = class {
                 this._expander.innerText = '-';
 
                 const initializer = this._argument.initializer;
-                if (initializer && this._hasId) {
-                    const kind = initializer.kind;
-                    if (kind) {
-                        const kindLine = this._host.document.createElement('div');
-                        kindLine.className = 'sidebar-view-item-value-line-border';
-                        kindLine.innerHTML = 'kind: ' + '<b>' + kind + '</b>';
-                        this._element.appendChild(kindLine);
-                    }
+                if (this._hasId && this._hasKind) {
+                    const kindLine = this._host.document.createElement('div');
+                    kindLine.className = 'sidebar-view-item-value-line-border';
+                    kindLine.innerHTML = 'kind: ' + '<b>' + initializer.kind + '</b>';
+                    this._element.appendChild(kindLine);
                 }
-
-                let type = '?';
+                let type = null;
                 let denotation = null;
                 if (this._argument.type) {
                     type = this._argument.type.toString();
                     denotation = this._argument.type.denotation || null;
                 }
-
-                if (type) {
+                if (type && (this._hasId || this._hasKind)) {
                     const typeLine = this._host.document.createElement('div');
                     typeLine.className = 'sidebar-view-item-value-line-border';
                     typeLine.innerHTML = 'type: <code><b>' + type.split('<').join('&lt;').split('>').join('&gt;') + '</b></code>';
@@ -695,7 +705,7 @@ sidebar.ArgumentView = class {
                     this._element.appendChild(quantizationLine);
                 }
 
-                if (this._argument.location) {
+                if (this._argument.location !== undefined) {
                     const location = this._host.document.createElement('div');
                     location.className = 'sidebar-view-item-value-line-border';
                     location.innerHTML = 'location: ' + '<b>' + this._argument.location + '</b>';
@@ -703,35 +713,28 @@ sidebar.ArgumentView = class {
                 }
 
                 if (initializer) {
-                    const reference = initializer.reference;
-                    if (reference) {
-                        const referenceLine = this._host.document.createElement('div');
-                        referenceLine.className = 'sidebar-view-item-value-line-border';
-                        referenceLine.innerHTML = 'reference: ' + '<b>' + reference + '</b>';
-                        this._element.appendChild(referenceLine);
-                    }
-                    const state = initializer.state;
-                    if (state === null && this._host.save &&
-                        initializer.type.dataType && initializer.type.dataType != '?' &&
-                        initializer.type.shape && initializer.type.shape.dimensions && initializer.type.shape.dimensions.length > 0) {
-                        this._saveButton = this._host.document.createElement('div');
-                        this._saveButton.className = 'sidebar-view-item-value-expander';
-                        this._saveButton.innerHTML = '&#x1F4BE;';
-                        this._saveButton.addEventListener('click', () => {
-                            this._raise('export-tensor', initializer);
-                        });
-                        this._element.appendChild(this._saveButton);
-                    }
-
-                    const valueLine = this._host.document.createElement('div');
-                    valueLine.className = 'sidebar-view-item-value-line-border';
                     const contentLine = this._host.document.createElement('pre');
+                    const valueLine = this._host.document.createElement('div');
                     try {
+                        const state = initializer.state;
+                        if (state === null && this._host.save &&
+                            initializer.type.dataType && initializer.type.dataType != '?' &&
+                            initializer.type.shape && initializer.type.shape.dimensions && initializer.type.shape.dimensions.length > 0) {
+                            this._saveButton = this._host.document.createElement('div');
+                            this._saveButton.className = 'sidebar-view-item-value-expander';
+                            this._saveButton.innerHTML = '&#x1F4BE;';
+                            this._saveButton.addEventListener('click', () => {
+                                this._raise('export-tensor', initializer);
+                            });
+                            this._element.appendChild(this._saveButton);
+                        }
+
+                        valueLine.className = 'sidebar-view-item-value-line-border';
                         contentLine.innerHTML = state || initializer.toString();
                     }
                     catch (err) {
                         contentLine.innerHTML = err.toString();
-                        this._host.exception(err, false);
+                        this._raise('error', err);
                     }
                     valueLine.appendChild(contentLine);
                     this._element.appendChild(valueLine);
@@ -971,9 +974,9 @@ sidebar.DocumentationSidebar = class {
                 }
             }
 
-            if (documentation.domain && documentation.since_version && documentation.support_level) {
+            if (documentation.domain && documentation.version && documentation.support_level) {
                 this._append(element, 'h2', 'Support');
-                this._append(element, 'dl', 'In domain <tt>' + documentation.domain + '</tt> since version <tt>' + documentation.since_version + '</tt> at support level <tt>' + documentation.support_level + '</tt>.');
+                this._append(element, 'dl', 'In domain <tt>' + documentation.domain + '</tt> since version <tt>' + documentation.version + '</tt> at support level <tt>' + documentation.support_level + '</tt>.');
             }
 
             if (!this._host.browser) {
@@ -1191,7 +1194,7 @@ sidebar.FindSidebar = class {
                 (operator && operator.toLowerCase().indexOf(text) != -1))) {
                 const nameItem = this._host.document.createElement('li');
                 nameItem.innerText = '\u25A2 ' + node.name;
-                nameItem.id = 'node-' + node.name;
+                nameItem.id = 'node-name-' + node.name;
                 this._resultElement.appendChild(nameItem);
                 nodeMatches.add(node.name);
             }

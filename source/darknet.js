@@ -220,7 +220,7 @@ darknet.Graph = class {
                 break;
             }
             default: {
-                throw new darknet.Error("First section must be [net] or [network].");
+                throw new darknet.Error("Unexpected '[" + net.type + "]' section. First section must be [net] or [network].");
             }
         }
 
@@ -365,8 +365,8 @@ darknet.Graph = class {
                         layer.out_w = params.w;
                         layer.out_c = params.c;
                         layer.out = layer.in;
-                        load_batch_normalize_weights(weights, section, '', layer.out);
-                        layer.outputs[0].type = new darknet.TensorType('float32', make_shape([ layer.ouputs ], 'batchnorm'));
+                        load_batch_normalize_weights(layer, '', layer.out_c);
+                        layer.outputs[0].type = new darknet.TensorType('float32', make_shape([ layer.out_w, layer.out_h, layer.out_c ], 'batchnorm'));
                         break;
                     }
                     case 'activation': {
@@ -374,7 +374,7 @@ darknet.Graph = class {
                         layer.out_w = params.w;
                         layer.out_c = params.c;
                         layer.out = layer.in;
-                        layer.outputs[0].type = new darknet.TensorType('float32', make_shape([ layer.ouputs ], 'activation'));
+                        layer.outputs[0].type = new darknet.TensorType('float32', make_shape([ layer.out_w, layer.out_h, layer.out_c ], 'activation'));
                         break;
                     }
                     case 'max':
@@ -1160,18 +1160,8 @@ darknet.Metadata = class {
         this._map = new Map();
         this._attributeMap = new Map();
         if (data) {
-            const items = JSON.parse(data);
-            if (items) {
-                for (const item of items) {
-                    if (item && item.name && item.schema) {
-                        if (this._map.has(item.name)) {
-                            throw new darknet.Error("Duplicate metadata key '" + item.name + "'.");
-                        }
-                        item.schema.name = item.name;
-                        this._map.set(item.name, item.schema);
-                    }
-                }
-            }
+            const metadata = JSON.parse(data);
+            this._map = new Map(metadata.map((item) => [ item.name, item ]));
         }
     }
 
